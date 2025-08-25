@@ -3,6 +3,8 @@ name: CI
 on:
   push:
     branches: ["**"]
+  pull_request:
+    types: [opened, synchronize]
   workflow_dispatch: {}
 
 permissions:
@@ -76,7 +78,7 @@ jobs:
 
       # Clean tree before rebase to avoid "You have unstaged changes" (e.g., mvnw perms)
       - name: Commit CI proof back (pull -> commit -> push)
-        if: ${{ github.event_name != 'pull_request' && github.run_attempt == 1 }}
+        if: ${{ github.event_name == 'push' && github.run_attempt == 1 }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
