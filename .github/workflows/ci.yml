@@ -1,0 +1,89 @@
+name: CI
+on:
+  push:
+    branches: ["**"]
+  workflow_dispatch: {}
+permissions:
+  contents: write
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Resolve dependencies
+        run: ./mvnw -B -ntp dependency:go-offline
+
+      - name: Build & Test
+        run: ./mvnw -B -ntp verify
+
+      - name: List built artifacts (debug)
+        if: always()
+        run: |
+          echo "JARs:" && find . -type f -name "*.jar" -not -name "*-sources.jar" -not -name "*-javadoc.jar" -print || true
+          echo "Reports:" && find . -type f -path "*/target/*reports/*" -print || true
+
+      - name: Upload JAR (if exists)
+        if: ${{ success() && hashFiles('**/target/*.jar') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: |
+            **/target/*.jar
+            !**/*-sources.jar
+            !**/*-javadoc.jar
+
+      - name: Upload test reports (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            **/target/surefire-reports/**
+            **/target/failsafe-reports/**
+          if-no-files-found: ignore
+
+      - name: Create build proof (always)
+        if: always()
+        shell: bash
+        run: |
+          TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          echo "Run #${{ github.run_number }} attempt #${{ github.run_attempt }} on ${{ github.run_id }} at ${TS}" > build-proof.txt
+
+      - name: Upload build proof (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-proof
+          path: build-proof.txt
+          if-no-files-found: warn
+
+      - name: Commit CI proof back (pull -> commit -> push)
+        if: ${{ github.event_name != 'pull_request' && github.run_attempt == 1 }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -e
+          git config user.name "${{ github.actor }}"
+          git config user.email "${{ github.actor }}@users.noreply.github.com"
+          git fetch origin ${{ github.ref_name }}
+          git checkout ${{ github.ref_name }}
+          git pull --rebase origin ${{ github.ref_name }}
+          mkdir -p .github
+          TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          echo "Run #${{ github.run_number }} attempt #${{ github.run_attempt }} on ${{ github.run_id }} at ${TS} by ${{ github.actor }}" >> .github/ci-proof.txt
+          git add .github/ci-proof.txt
+          git commit -m "ci: proof of run [skip ci]" || echo "Nothing to commit"
+          git push origin HEAD:${{ github.ref_name }}
