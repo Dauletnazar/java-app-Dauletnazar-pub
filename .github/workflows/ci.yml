@@ -1,4 +1,5 @@
 name: CI
+
 on:
   push:
     branches: ["**"]
@@ -19,22 +20,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Prepare Maven Wrapper (chmod + fix line endings)
-        run: |
-          chmod +x mvnw || true
-          sed -i 's/\r$//' mvnw || true
-
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
+      # Use Maven Wrapper via bash (do not modify mvnw)
       - name: Resolve dependencies
-        run: ./mvnw -B -ntp dependency:go-offline
+        run: bash ./mvnw -B -ntp dependency:go-offline
 
       - name: Build & Test
-        run: ./mvnw -B -ntp verify
+        run: bash ./mvnw -B -ntp verify
 
       - name: List built artifacts (debug)
         if: always()
@@ -77,6 +74,7 @@ jobs:
           path: build-proof.txt
           if-no-files-found: warn
 
+      # Clean tree before rebase to avoid "You have unstaged changes" (e.g., mvnw perms)
       - name: Commit CI proof back (pull -> commit -> push)
         if: ${{ github.event_name != 'pull_request' && github.run_attempt == 1 }}
         env:
@@ -86,12 +84,18 @@ jobs:
           set -e
           git config user.name "${{ github.actor }}"
           git config user.email "${{ github.actor }}@users.noreply.github.com"
+
+          # ensure clean working tree
+          git reset --hard
+
           git fetch origin ${{ github.ref_name }}
           git checkout ${{ github.ref_name }}
           git pull --rebase origin ${{ github.ref_name }}
+
           mkdir -p .github
           TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           echo "Run #${{ github.run_number }} attempt #${{ github.run_attempt }} on ${{ github.run_id }} at ${TS} by ${{ github.actor }}" >> .github/ci-proof.txt
+
           git add .github/ci-proof.txt
           git commit -m "ci: proof of run [skip ci]" || echo "Nothing to commit"
           git push origin HEAD:${{ github.ref_name }}
