@@ -12,10 +12,15 @@ public class AppConfig {
         return new WebMvcConfigurer() {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
-                registry.addMapping("/**")
-                        .allowedOrigins("*")
-                        .allowedMethods("*")
-                        .allowedHeaders("*");
+                registry.addMapping("/api/**")
+                        .allowedOriginPatterns(
+                                "http://localhost:3000",
+                                "https://your-frontend.example.com")
+                        .allowedMethods("GET","POST","PUT","DELETE","PATCH","OPTIONS")
+                        .allowedHeaders("Authorization","Content-Type")
+                        .allowCredentials(true)
+                        .maxAge(3600);
+
             }
         };
     }
