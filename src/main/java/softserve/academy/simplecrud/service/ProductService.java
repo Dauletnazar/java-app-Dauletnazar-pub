@@ -17,18 +17,29 @@ import java.util.List;
 import static org.springframework.util.StringUtils.hasText;
 
 @RequiredArgsConstructor
-@Transactional
 @Service
 public class ProductService {
-    final ProductRepository productRepository;
 
+    private final ProductRepository productRepository;
+
+    private static long parseIdOrThrow(String rawId) {
+        try {
+            return Long.parseLong(rawId);
+        } catch (NumberFormatException ex) {
+            throw new ProductNotFoundException();
+        }
+    }
+
+    /** Read-only */
     @Transactional(readOnly = true)
     public List<ProductDto> getAll() {
-        return productRepository.findAll().stream()
+        return productRepository.findAll()
+                .stream()
                 .map(ProductDto::new)
                 .toList();
     }
 
+    @Transactional
     public ProductCreated create(NewProduct newProduct) {
         Product p = Product.builder()
                 .name(newProduct.name())
@@ -38,21 +49,19 @@ public class ProductService {
         return new ProductCreated(p.getId().toString());
     }
 
+    /** Пошук за id як публічне API (read-only). */
     @Transactional(readOnly = true)
     public Product findById(String id) {
-        final long productId;
-        try {
-            productId = Long.parseLong(id);
-        } catch (NumberFormatException ex) {
-            throw new ProductNotFoundException();
-        }
-
+        long productId = parseIdOrThrow(id);
         return productRepository.findById(productId)
                 .orElseThrow(ProductNotFoundException::new);
     }
 
+    @Transactional
     public void patch(PatchProduct patchProduct, String id) {
-        Product p = findById(id);
+        long productId = parseIdOrThrow(id);
+        Product p = productRepository.findById(productId)
+                .orElseThrow(ProductNotFoundException::new);
 
         String newName = patchProduct.name();
         if (hasText(newName)) {
@@ -63,11 +72,13 @@ public class ProductService {
         if (newPrice != null) {
             p.setPrice(newPrice);
         }
-        // saved back on transaction closing
     }
 
+    @Transactional
     public void delete(String id) {
-        Product p = findById(id);
+        long productId = parseIdOrThrow(id);
+        Product p = productRepository.findById(productId)
+                .orElseThrow(ProductNotFoundException::new);
         productRepository.delete(p);
     }
 }

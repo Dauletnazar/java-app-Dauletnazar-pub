@@ -4,7 +4,6 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
-import softserve.academy.simplecrud.model.entity.Product;
 import softserve.academy.simplecrud.model.request.NewProduct;
 import softserve.academy.simplecrud.model.request.PatchProduct;
 import softserve.academy.simplecrud.model.response.ProductCreated;
