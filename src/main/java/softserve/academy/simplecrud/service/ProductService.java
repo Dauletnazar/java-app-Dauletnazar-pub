@@ -13,7 +13,6 @@ import softserve.academy.simplecrud.repository.ProductRepository;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.NoSuchElementException;
 
 import static org.springframework.util.StringUtils.hasText;
 
@@ -41,13 +40,15 @@ public class ProductService {
 
     @Transactional(readOnly = true)
     public Product findById(String id) {
+        final long productId;
         try {
-            Long productId = Long.parseLong(id);
-            return productRepository.findById(productId).get();
-        } catch (NumberFormatException | NoSuchElementException ex) {
-            // pass
+            productId = Long.parseLong(id);
+        } catch (NumberFormatException ex) {
+            throw new ProductNotFoundException();
         }
-        throw new ProductNotFoundException();
+
+        return productRepository.findById(productId)
+                .orElseThrow(ProductNotFoundException::new);
     }
 
     public void patch(PatchProduct patchProduct, String id) {
